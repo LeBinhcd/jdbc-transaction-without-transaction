@@ -1,4 +1,4 @@
-﻿package com.codegym.dao;
+package com.codegym.dao;
 import com.codegym.model.User; import java.sql.*; import java.util.*;
 public class UserDAO implements IUserDAO {
  private static final String URL="jdbc:mysql://localhost:3306/user_management?useSSL=false&serverTimezone=UTC"; private static final String USER="root"; private static final String PASSWORD="";
@@ -21,6 +21,27 @@ public class UserDAO implements IUserDAO {
    insert.setString(1,"Ngan"); insert.setBigDecimal(2,new java.math.BigDecimal("20")); insert.setTimestamp(3,java.sql.Timestamp.valueOf(java.time.LocalDateTime.now())); insert.executeUpdate();
    update.setBigDecimal(2,new java.math.BigDecimal("999.99")); update.setString(2,"Quynh"); update.executeUpdate();
   } catch(SQLException e) { System.out.println("Đã bắt được lỗi trong quá trình thực thi SQL:"); e.printStackTrace(); }
+  }
+  public void insertUpdateUseTransaction() throws SQLException {
+   String insertSql="INSERT INTO Employee (name,salary,created_Date) VALUES (?,?,?)";
+   String updateSql="UPDATE Employee SET salary=? WHERE name=?";
+   try(Connection c=connect();PreparedStatement insert=c.prepareStatement(insertSql);PreparedStatement update=c.prepareStatement(updateSql)) {
+    c.setAutoCommit(false);
+    try {
+     insert.setString(1,"Quynh"); insert.setBigDecimal(2,new java.math.BigDecimal("10")); insert.setTimestamp(3,java.sql.Timestamp.valueOf(java.time.LocalDateTime.now())); insert.executeUpdate();
+     insert.setString(1,"Ngan"); insert.setBigDecimal(2,new java.math.BigDecimal("20")); insert.setTimestamp(3,java.sql.Timestamp.valueOf(java.time.LocalDateTime.now())); insert.executeUpdate();
+     // Cố tình sai index để lần chạy đầu kiểm chứng rollback. Đổi 2 thành 1 để commit thành công.
+     update.setBigDecimal(2,new java.math.BigDecimal("999.99")); update.setString(2,"Quynh"); update.executeUpdate();
+     c.commit();
+    } catch(SQLException e) {
+     try { c.rollback(); } catch(SQLException rollback) { e.addSuppressed(rollback); }
+     System.out.println("Lỗi xảy ra, Transaction đã rollback: "+e.getMessage());
+    } finally {
+     try { c.setAutoCommit(true); } catch(SQLException ignored) { }
+    }
+   }
+  }
+
  } public void addUserTransaction(User u,int[] permissionIds)throws SQLException { try(Connection c=connect()){c.setAutoCommit(false);try{int userId;try(PreparedStatement p=c.prepareStatement("INSERT INTO users(name,email,country) VALUES(?,?,?)",Statement.RETURN_GENERATED_KEYS)){setUser(p,u);p.executeUpdate();try(ResultSet r=p.getGeneratedKeys()){if(!r.next())throw new SQLException("Could not obtain generated user id");userId=r.getInt(1);}}if(permissionIds!=null){try(PreparedStatement p=c.prepareStatement("INSERT INTO user_permission(user_id,permission_id) VALUES(?,?)")){for(int permissionId:permissionIds){p.setInt(1,userId);p.setInt(2,permissionId);p.executeUpdate();}}}c.commit();}catch(SQLException e){try{c.rollback();}catch(SQLException rollback){e.addSuppressed(rollback);}throw e;}finally{try{c.setAutoCommit(true);}catch(SQLException ignored){}}} }
 }
 
